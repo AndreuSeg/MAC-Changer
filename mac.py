@@ -3,7 +3,7 @@ import subprocess
 import netifaces
 import argparse
 import random
-import os
+import os, sys
 
 # Constantes
 BANNER = """
@@ -21,8 +21,9 @@ def flags():
     # Creamos el parseador
     parser = argparse.ArgumentParser()
     # Añadimos los argumentos
-    parser.add_argument("-r", "--random", action="store_true", help="Set a random MAC")
     parser.add_argument("-i", "--interface", type=str, help="Network interface to change")
+    parser.add_argument("-r", "--random", action="store_true", help="Set a random mac")
+    parser.add_argument("-p", "--permanent", action="store_true", help="Get the permanent mac")
     # Parseamos los arumentos al script
     args = parser.parse_args()
     # Devlovemos la variable del nombre del archivo
@@ -30,7 +31,9 @@ def flags():
 
 
 def get_interfaces():
-    # Obtener una lista de interfaces de red disponibles
+    """
+    Obtenemos las interfaces de red que hay en el sistema y las almacenamos en una lista.
+    """
     interfaces = subprocess.check_output(['ifconfig', '-a']).decode().split('\n\n')
     interfaces = [interface.split()[0][:-1] for interface in interfaces if interface]
     return interfaces
@@ -92,6 +95,21 @@ def change_mac(interface, new_mac):
     print(f"The MAC address of the {interface} interface has been changed to {new_mac}.")
 
 
+def get_perm_mac(interface):
+    try:
+        # Ejecutamos el comnado para obtener la mac permanente.
+        result = subprocess.check_output('ip link show {} | grep permaddr'.format(interface), shell=True)
+        # La pasamos a str y quitamos espacios en blanco con .strip()
+        result = result.decode('utf-8').strip()
+        # Almacenamos solo la mac
+        permanent_mac = result.split("permaddr ")[1]
+        return permanent_mac
+    except subprocess.CalledProcessError:
+        print('The mac address is the original. ')
+        print('Aborting the script. ')
+        sys.exit()
+
+
 if __name__ == '__main__':
     os.system('clear')
     print(BANNER)
@@ -108,16 +126,22 @@ if __name__ == '__main__':
         if args.random:
             new_mac = generate_random_mac()
             change_mac(interface=interface, new_mac=new_mac)
+        elif args.permanent:
+            permanent_mac = get_perm_mac(interface=interface)
+            change_mac(interface=interface, new_mac=permanent_mac)
         else:
             new_mac = verify_mac()
             change_mac(interface=interface, new_mac=new_mac)
-    else:
+    elif args.interface:
         interface = args.interface
         mac = netifaces.ifaddresses(interface)[netifaces.AF_LINK][0]['addr']
         print(f'{interface} ({mac})')
         if args.random:
             new_mac = generate_random_mac()
             change_mac(interface=interface, new_mac=new_mac)
+        elif args.permanent:
+            permanent_mac = get_perm_mac(interface=interface)
+            change_mac(interface=interface, new_mac=permanent_mac)
         else:
             new_mac = verify_mac()
             change_mac(interface=interface, new_mac=new_mac)
